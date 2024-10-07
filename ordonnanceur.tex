@@ -1,0 +1,71 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{longtable}
+\usepackage{sectsty}
+
+\title{\Large Un ordonnanceur par work stealing}
+\author{Aranniy Lingeswaran et Victoria Lim}
+\date{5 avril 2024}
+
+\sectionfont{\fontsize{15}{15}\selectfont}
+
+\begin{document}
+	
+	\maketitle
+	
+	\section*{Ordonnanceur LIFO}
+	
+	\subsection*{Description du travail :}
+	
+		TODO:
+		\begin{itemize}
+		\item parler des difficultés rencontrées lors de la conception, et réduire la description des fonctions...c'est peut être pas utile ?
+		\item en extension, peut-être comparer les performances sur Mac et Lulu ?
+		\item faire des graphes !
+		\item refaire les test du Benchmark, les résultats sont étonnants mdr
+	\end{itemize}
+	
+	
+	Pour réaliser notre ordonnanceur LIFO, nous avons créé une structure de données scheduler contenant :
+	
+	\begin{itemize}
+		\item une liste de tasks de fonctions,
+		\item le nombre minimum de tâches simultanées,
+		\item la position de la dernière tâche en date,
+		\item le nombre de threads,
+		\item le nombre de threads endormis,
+		\item un pthread mutex, et
+		\item un pthread cond.
+	\end{itemize}
+	
+	La fonction \texttt{sched\_spawn} permet d’ajouter une tâche dans notre tableau tasks du scheduler. Elle agit à l’intérieur d’un mutex pour éviter l’enfilage de tâches à la même position. L’ajout de la tâche consiste à incrémenter la valeur de \texttt{task\_libre}, et de stocker la \texttt{taskfunc} et la fonction associée dans \texttt{tasks}. Après avoir enfilé la tâche, on lance un signal, à l’aide de \texttt{cond}, à un thread endormi (le choix du thread est arbitraire) pour qu’il se réveille afin qu’il effectue la tâche.
+	
+	La fonction \texttt{sched\_init} va allouer en mémoire la structure scheduler ainsi que ses attributs tasks et closures. On a d’abord initialisé le mutex et la variable de condition, ensuite on a stocké les valeurs données en paramètre dans le scheduler, puis on a créé un tableau de threads et chacun de ces threads va exécuter la fonction \texttt{scheduler\_thread}. On finit ensuite en attendant le retour de chaque thread à l’aide d’un \texttt{pthread\_join} et en désallouant la mémoire allouée. La fonction \texttt{scheduler\_thread} va s’exécuter dans une boucle \texttt{while(1)}, dans un mutex afin de protéger la modification des données du scheduler. S’il n’y a pas de tâches en cours, le thread courant s’endort, mais si tous les autres threads sont endormis, ils doivent les réveiller à l’aide d’un \texttt{broadcast}, libérer le lock qu’ils ont pris et sortir de la boucle. Dans ce cas-là, les threads réveillés, s’il n’y a toujours pas de tâches disponibles, vont à leur tour quitter. Toutefois, s’il y a bien une tâche, on la dépille et on l’exécute.
+	
+	\subsection*{Résultats :}
+	
+	\begin{longtable}{|c|c|c|c|c|c|}
+		\hline
+		\textbf{Size} & \textbf{2 cœurs} & \textbf{4 cœurs} & \textbf{6 cœurs} & \textbf{8 cœurs} & \textbf{16 cœurs} \\
+		\hline
+		1000 & 0.000250 & 0.000389 & 0.001632 & 0.001156 & 0.002031 \\
+		10000 & 0.000849 & 0.000696 & 0.001288 & 0.001423 & 0.001543 \\
+		100000 & 0.006559 & 0.004797 & 0.004718 & 0.003764 & 0.004511 \\
+		1000000 & 0.071218 & 0.057436 & 0.068966 & 0.056063 & 0.037129 \\
+		10000000 & 0.787602 & 0.581183 & 0.565269 & 0.564687 & 0.577924 \\
+		100000000 & 8.579249 & 6.007914 & 8.397164 & 8.371198 & 4.974978 \\
+		\hline
+		\caption{Résultats de benchmarks en fonction du nombre de cœurs (en sec)}
+	\end{longtable}
+	
+	\subsection*{Synthèse :}
+	
+	\begin{itemize}
+		\item Globalement, on constate une diminution du temps d'exécution lorsque le nombre de cœurs augmente.
+		\item Cette diminution n'est pas toujours linéaire et peut varier en fonction de la taille des données.
+		\item Pour des tailles de données plus importantes, le temps d'exécution diminue significativement avec un nombre plus élevé de cœurs.
+		\item Pour des tailles de données beaucoup moins élevé, le temps d'exécution augmente avec un nombre plus élevé de cœurs.
+	\end{itemize}
+	
+\end{document}
+
